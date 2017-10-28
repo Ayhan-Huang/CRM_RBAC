@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/1.11/ref/settings/
 """
 
 import os
-
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -39,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'app01.apps.App01Config',
     'arya.apps.AryaConfig',
+    'rbac.apps.RbacConfig',
 ]
 
 MIDDLEWARE = [
@@ -49,6 +49,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # 'rbac.middleware.rbac.RbacMiddleware'
 ]
 
 ROOT_URLCONF = 'CRM_PRAC.urls'
@@ -121,3 +122,25 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/1.11/howto/static-files/
 
 STATIC_URL = '/static/'
+
+
+# 定义session 键：
+# 保存用户权限url列表
+# 保存 权限菜单 和所有 菜单
+SESSION_PERMISSION_URL_KEY = 'cool'
+
+SESSION_MENU_KEY = 'awesome'
+ALL_MENU_KEY = 'k1'
+PERMISSION_MENU_KEY = 'k2'
+
+LOGIN_URL = '/login/'
+
+REGEX_URL = r'^{url}$'  # url作严格匹配
+
+# 配置url权限白名单
+SAFE_URL = [
+    '/login/',
+    '/test/',
+    '/index/',
+    '/arya/rbac/permission/',
+]

@@ -1,5 +1,6 @@
 from django.db import models
-# from rbac import models as rbac_model
+from rbac.models import User as rbac_User
+
 
 class Department(models.Model):
     """
@@ -15,11 +16,12 @@ class UserInfo(models.Model):
     """
     员工表
     """
-    # auth = models.OneToOneField(verbose_name='用户权限',to=rbac_model.User)
+    # 与权限表建立一对一表关联，重复字段在这里剔除
+    user = models.OneToOneField(verbose_name='账户', to=rbac_User)
     name = models.CharField(verbose_name='员工姓名', max_length=16, null=True, blank=True)
-    username = models.CharField(verbose_name='用户名', max_length=32, null=True, blank=True)
-    password = models.CharField(verbose_name='密码', max_length=64, null=True, blank=True)
-    email = models.EmailField(verbose_name='邮箱', max_length=64, null=True, blank=True)
+    # username = models.CharField(verbose_name='用户名', max_length=32, null=True, blank=True)
+    # password = models.CharField(verbose_name='密码', max_length=64, null=True, blank=True)
+    # email = models.EmailField(verbose_name='邮箱', max_length=64, null=True, blank=True)
 
     depart = models.ForeignKey(verbose_name='部门', to="Department", null=True, blank=True)
 
@@ -38,6 +40,9 @@ class Course(models.Model):
     """
     name = models.CharField(verbose_name='课程名称', max_length=32)
 
+    def __str__(self):
+        return self.name
+
 
 class School(models.Model):
     """
@@ -49,6 +54,9 @@ class School(models.Model):
         广州白云山校区
     """
     title = models.CharField(verbose_name='校区名称', max_length=32)
+
+    def __str__(self):
+        return self.title
 
 
 class ClassList(models.Model):
@@ -66,6 +74,10 @@ class ClassList(models.Model):
     memo = models.CharField(verbose_name='说明', max_length=256, blank=True, null=True, )
     teachers = models.ManyToManyField(verbose_name='任课老师', to='UserInfo', related_name='teach_classes')
     tutor = models.ForeignKey(verbose_name='班主任', to='UserInfo', related_name='classes')
+
+    def __str__(self):
+        tpl = '{course} {semester}期'.format(course=self.course.name, semester=self.semester)
+        return tpl
 
 
 class Customer(models.Model):
@@ -154,6 +166,9 @@ class Customer(models.Model):
     date = models.DateField(verbose_name="咨询日期", auto_now_add=True)
     last_consult_date = models.DateField(verbose_name="最后跟进日期", auto_now_add=True)
 
+    def __str__(self):
+        return self.name
+
 
 class ConsultRecord(models.Model):
     """
@@ -200,13 +215,16 @@ class Student(models.Model):
     emergency_contract = models.CharField(max_length=32, blank=True, null=True, verbose_name='紧急联系人')
     class_list = models.ManyToManyField(verbose_name="已报班级", to='ClassList', blank=True)
 
-    company = models.CharField(verbose_name='公司', max_length=128, )
-    location = models.CharField(max_length=64, verbose_name='所在区域')
-    position = models.CharField(verbose_name='岗位', max_length=64)
-    salary = models.IntegerField(verbose_name='薪资')
-    welfare = models.CharField(verbose_name='福利', max_length=256)
-    date = models.DateField(verbose_name='入职时间', help_text='格式yyyy-mm-dd')
-    memo = models.CharField(verbose_name='备注', max_length=256)
+    company = models.CharField(verbose_name='公司', max_length=128, blank=True)
+    location = models.CharField(max_length=64, verbose_name='所在区域', blank=True)
+    position = models.CharField(verbose_name='岗位', max_length=64, blank=True)
+    salary = models.IntegerField(verbose_name='薪资', null=True, blank=True)
+    welfare = models.CharField(verbose_name='福利', max_length=256, blank=True)
+    date = models.DateField(verbose_name='入职时间', help_text='格式yyyy-mm-dd', null=True, blank=True)
+    memo = models.CharField(verbose_name='备注', max_length=256, blank=True)
+
+    def __str__(self):
+        return self.username
 
 
 class CourseRecord(models.Model):
@@ -224,6 +242,10 @@ class CourseRecord(models.Model):
     homework_title = models.CharField(verbose_name='本节作业标题', max_length=64, blank=True, null=True)
     homework_memo = models.TextField(verbose_name='作业描述', max_length=500, blank=True, null=True)
     exam = models.TextField(verbose_name='踩分点', max_length=300, blank=True, null=True)
+
+    def __str__(self):
+        name = '{0}{1}期'.format(self.course.course.name, self.course.semester)
+        return '{name} 第{day_num}天 - {title}'.format(name=name, day_num=self.day_num, title=self.course_title)
 
 
 class StudyRecord(models.Model):

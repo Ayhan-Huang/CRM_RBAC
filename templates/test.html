@@ -1,0 +1,34 @@
+<form>
+    <div>用户名：{{ form.name }}</div>
+    <div>密码：{{ form.password }}</div>
+    <div>邮箱：{{ form.email }}</div>
+    <div>部门：{{ form.depart }}</div>
+</form>
+
+<select name="depart" required="" id="id_depart">
+  <option value="" selected="">---------</option>
+  <option value="1">销售</option>
+  <option value="2">公关</option>
+  <option value="3">技术</option>
+  <option value="4">后勤</option>
+</select>
+
+{#<select name="depart" id="id_depart">#}
+{#    <option value="1">销售</option>#}
+{#    <option value="2">公关</option>#}
+{#    <option value="3">技术</option>#}
+{#    <option value="4">后勤</option>#}
+{#</select>#}
+{##}
+{#<form>#}
+{#    <div>用户名：{{ form.name }}</div>#}
+{#    <div>密码：{{ form.password }}</div>#}
+{#    <div>邮箱：{{ form.email }}</div>#}
+{#    <div>城市：{{ form.city }}</div>#}
+{#</form>#}
+{##}
+{#<select name="city" id="id_city">#}
+{#    <option value="1">北京</option>#}
+{#    <option value="2">上海</option>#}
+{#    <option value="3">武汉</option>#}
+{#</select>#}

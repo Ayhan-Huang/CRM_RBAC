@@ -10,6 +10,7 @@ from arya.utils.pagination import Page
 from django.forms import ModelForm
 from types import FunctionType
 from django.db.models import ForeignKey, ManyToManyField
+from django.db.models import Q
 
 
 class FilterRow(object):
@@ -18,28 +19,26 @@ class FilterRow(object):
     """
     def __init__(self, option, change_list, data_list, request):
         self.option = option
-
         self.data_list = data_list
-
         self.param_dict = copy.deepcopy(request.GET)
-
         self.param_dict._mutable = True
-
         self.change_list = change_list
 
     def __iter__(self):
 
         base_url = self.change_list.model_config.changelist_url
-        tpl = "<a href='{0}' class='{1}'>{2}</a>"
+        tpl = "<a href='{url}' class='{active}'>{text}</a>"
         # 全部
-        if self.option.name in self.param_dict:
+        if self.option.name in self.param_dict:  # depart   ?depart=1 {'depart":1}
             pop_value = self.param_dict.pop(self.option.name)
-            url = "{0}?{1}".format(base_url, self.param_dict.urlencode())
-            val = tpl.format(url, '', '全部')
+            url = "{base_url}?{query_string}"\
+                .format(base_url=base_url, query_string=self.param_dict.urlencode())
+            val = tpl.format(url=url, active='', text='全部')
             self.param_dict.setlist(self.option.name, pop_value)
         else:
-            url = "{0}?{1}".format(base_url, self.param_dict.urlencode())
-            val = tpl.format(url, 'active', '全部')
+            url = "{base_url}?{query_string}"\
+                .format(base_url=base_url, query_string=self.param_dict.urlencode())
+            val = tpl.format(url=url, active='active', text='全部')
 
         # self.param_dict
 
@@ -48,7 +47,7 @@ class FilterRow(object):
         yield mark_safe("</div>")
 
         yield mark_safe("<div class='others'>")
-        for obj in self.data_list:
+        for obj in self.data_list:  # for obj in depart.query_set
 
             param_dict = copy.deepcopy(self.param_dict)
 
@@ -72,24 +71,29 @@ class FilterRow(object):
                     param_dict.appendlist(self.option.name, pk)
             else:
                 param_dict[self.option.name] = pk
-            url = "{0}?{1}".format(base_url, param_dict.urlencode())
-            val = tpl.format(url, 'active' if exist else '', text)
+
+            url = "{base_url}?{query_string}"\
+                .format(base_url=base_url, query_string=param_dict.urlencode())
+            val = tpl.format(url=url, active='active' if exist else '', text=text)
             yield mark_safe(val)
         yield mark_safe("</div>")
 
 
 class FilterOption(object):
-    def __init__(self, field_or_func, is_multi=False, text_func_name=None, val_func_name=None):
+    def __init__(self, field_or_func, is_multi=False, text_func_name=None, val_func_name=None, condition=None):
         """
         :param field: 字段名称或函数
         :param is_multi: 是否支持多选
         :param text_func_name: a标签上显示的内容， 默认str(obj)
         :param val_func_name:  url上要传递的值，默认 obj.pk
+        :param condition: 显示过滤标签时，通过这个参数加以限定（默认是显示所有），值是Q对象
+        
         """
         self.field_or_func = field_or_func
         self.is_multi = is_multi
         self.text_func_name = text_func_name
         self.val_func_name = val_func_name
+        self.condition = condition
 
     @property
     def is_func(self):
@@ -103,6 +107,13 @@ class FilterOption(object):
         else:
             return self.field_or_func
 
+    def get_condition(self):
+        if self.condition:
+            return self.condition
+        condition = Q()
+        return condition
+        # 如果不存在，返回空的Q对象；否则ChangList中的gen_list_filter函数filter接收None会报错。
+
 
 class ChangeList(object):
     def __init__(self, model_config, result_list):
@@ -112,10 +123,11 @@ class ChangeList(object):
         self.list_display = model_config.get_show_list_display()
         self.actions = model_config.get_actions()
         self.list_filter = model_config.get_list_filter()
+        self.list_search = model_config.get_list_search()
 
         self.result_list = result_list
         all_count = result_list.count()
-        query_params = copy.copy(model_config.request.GET)
+        query_params = copy.copy(model_config.request.GET) # 根据url生成页码要用
         query_params._mutable = True
 
         self.pager = Page(model_config.request.GET.get('page'), all_count, base_url=model_config.changelist_url,
@@ -133,18 +145,18 @@ class ChangeList(object):
     def gen_list_filter(self):
 
         for option in self.model_config.list_filter:
-
+            # option是FilterOption对象
             if option.is_func:
                 data_list = option.field_or_func(self.model_config, option, self, self.model_config.request)
             else:
                 _field = self.model_config.model_class._meta.get_field(option.field_or_func)
 
                 if isinstance(_field, ForeignKey):
-                    data_list = FilterRow(option, self, _field.rel.model.objects.all(), self.model_config.request)
+                    data_list = FilterRow(option, self, _field.rel.model.objects.filter(option.get_condition()), self.model_config.request)
                 elif isinstance(_field, ManyToManyField):
-                    data_list = FilterRow(option, self, _field.rel.model.objects.all(), self.model_config.request)
+                    data_list = FilterRow(option, self, _field.rel.model.objects.filter(option.get_condition()), self.model_config.request)
                 else:
-                    data_list = FilterRow(option, self, _field.model.objects.all(), self.model_config.request)
+                    data_list = FilterRow(option, self, _field.model.objects.filter(option.get_condition()), self.model_config.request)
             yield data_list
 
 
@@ -157,6 +169,7 @@ class AryaConfig(object):
     list_display = []
 
     def list_display_checkbox(self, obj=None, is_header=False):
+        # obj 是表中的一条记录
         if is_header:
             tpl = "<input type='checkbox' id='headCheckBox' />"
             return mark_safe(tpl)
@@ -178,8 +191,8 @@ class AryaConfig(object):
         list_display = []
         if self.list_display:
             list_display.extend(self.list_display)
-            list_display.insert(0, self.list_display_checkbox)
-            list_display.append(self.list_display_edit)
+            list_display.insert(0, AryaConfig.list_display_checkbox)
+            list_display.append(AryaConfig.list_display_edit)
 
         return list_display
 
@@ -227,10 +240,20 @@ class AryaConfig(object):
     def get_list_filter(self):
         return self.list_filter
 
+    """定制搜索字段"""
+    list_search = []
+
+    def get_list_search(self):
+        list_search = []
+        list_search.extend(self.list_search)
+        return list_search
+
     def __init__(self, model_class, site):
 
         self.change_filter_name = "_change_filter"
         self.popup_key = "_popup"
+        self.search_key = 'q' # 搜索key
+        self.search_val = None
 
         self.model_class = model_class
         self.app_label = model_class._meta.app_label
@@ -239,6 +262,37 @@ class AryaConfig(object):
         self.site = site
 
         self.request = None
+
+    def get_filter_condition(self):
+        # 筛选，两种方式：基于字典，基于Q对象
+        # data_list = self.model_class.objects.filter(**{}) / filter(Q())
+        # 获取request.GET；剔除非数据库字段；
+        params = dict(copy.deepcopy(self.request.GET))
+        # {'consultant': ['6', '4'], 'gender': ['1', '2'], 'page': ['3'], 'uuu': ['999']}
+        # 如果不转为字典，那么只能取到列表的最后一个值；也可以通过v = params.getlist(k)
+        fields =[obj.name for obj in self.model_class._meta.get_fields()]  # 获取model中的所有字段（包含反向及关联字段）
+        filter_condition = {}
+        for k, v in params.items():
+            if k in fields:
+                key = '{k}__in'.format(k=k)  # 多选时列表中可能有多个元素，处理成双下划线
+                filter_condition[key] = v
+
+        return filter_condition
+
+    def get_search_condition(self):
+        # val = dict(copy.deepcopy(self.request.GET)).pop(self.search_key)
+        params = copy.deepcopy(self.request.GET)
+        search_condition = {}
+        if self.search_key in params:
+            val = params[self.search_key]
+            self.search_val = val
+            for field in self.get_list_search():
+                k = '{field}__contains'.format(field=field)
+                search_condition[k] = val
+
+        return search_condition
+
+
 
     def changelist_view(self, request, *args, **kwargs):
         """
@@ -255,7 +309,18 @@ class AryaConfig(object):
             if action_func:
                 action_func(request)
 
-        data_list = self.model_class.objects.all()
+
+
+        data_list = self.model_class.objects.filter(**self.get_filter_condition())\
+            .filter(**self.get_search_condition()).distinct()
+
+        # 销售显示自己的客源
+        if self.model_class._meta.model_name.upper() == 'CUSTOMER':
+            user_info = request.session.get('user_info')
+            if user_info.get('depart_id') == 1:
+                u_id = user_info.get('u_id')
+                data_list = data_list.filter(consultant_id=u_id)
+
         cl = ChangeList(self, data_list)
         context = {
             'cl': cl,
@@ -371,17 +436,30 @@ class AryaConfig(object):
         query = self.request.GET.get(self.change_filter_name)
         return "{0}?{1}".format(base_url, query if query else "")
 
+    def init_request(self, func):
+        import functools
+        @functools.wraps(func)
+        def wrapper(request, *args, **kwargs):
+            self.request = request
+            return func(request, *args, **kwargs)
+        return wrapper
+
     def get_urls(self):
         from django.conf.urls import url
 
         app_model_name = self.model_class._meta.app_label, self.model_class._meta.model_name
 
         patterns = [
-            url(r'^$', self.changelist_view, name="%s_%s_changelist" % app_model_name),
-            url(r'^add/$', self.add_view, name="%s_%s_add" % app_model_name),
-            url(r'^(.+)/delete/$', self.delete_view, name="%s_%s_delete" % app_model_name),
-            url(r'^(.+)/change/$', self.change_view, name="%s_%s_change" % app_model_name),
+            url(r'^$', self.init_request(self.changelist_view), name="%s_%s_changelist" % app_model_name),
+            url(r'^add/$', self.init_request(self.add_view), name="%s_%s_add" % app_model_name),
+            url(r'^(.+)/delete/$', self.init_request(self.delete_view), name="%s_%s_delete" % app_model_name),
+            url(r'^(.+)/change/$', self.init_request(self.change_view), name="%s_%s_change" % app_model_name),
         ]
+        """ 装饰器初始化request:
+        将装饰器写在所有视图都会交汇的位置：get_urls
+        装饰器的本质就是函数，接收函数；@语法糖最终也是以上形式
+        @functools.wraps(func)，显示函数的原信息（doc, __name__等）
+        """
         patterns += self.extra_urls()
         return patterns
 
@@ -433,9 +511,9 @@ class AryaSite(object):
             url(r'^logout/', self.logout),
         ]
 
-        for model_class, model_nb_obj in self._registry.items():
+        for model_class, model_config in self._registry.items():
             patterns += [
-                url(r'^%s/%s/' % (model_class._meta.app_label, model_class._meta.model_name,), model_nb_obj.urls)
+                url(r'^%s/%s/' % (model_class._meta.app_label, model_class._meta.model_name,), model_config.urls)
             ]
 
         return patterns

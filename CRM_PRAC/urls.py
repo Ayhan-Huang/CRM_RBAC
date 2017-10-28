@@ -15,7 +15,15 @@ Including another URLconf
 """
 from django.conf.urls import url
 from arya.service import sites
+from app01 import views
+
+def index(request):
+    from django.shortcuts import HttpResponse
+    return HttpResponse('你好啊')
 
 urlpatterns = [
     url(r'^arya/', sites.site.urls),
+    url(r'^index/', index),
+    url(r'^login/', views.login),
+
 ]

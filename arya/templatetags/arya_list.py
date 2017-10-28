@@ -19,8 +19,8 @@ def result_header_list(change_list):
         yield change_list.model_config.model_name
     else:
         for name in change_list.list_display:
-            yield name(is_header=True) if isinstance(name,
-                                                     MethodType) else change_list.model_config.model_class._meta.get_field(
+            yield name(change_list.model_config, is_header=True) if isinstance(name,
+                                                     FunctionType) else change_list.model_config.model_class._meta.get_field(
                 name).verbose_name
 
 
@@ -35,7 +35,7 @@ def result_body_list(change_list):
         if not change_list.list_display:
             yield [str(row), ]
         else:
-            yield [name(obj=row) if isinstance(name, MethodType) else getattr(row, name) for
+            yield [name(change_list.model_config, obj=row) if isinstance(name, FunctionType) else getattr(row, name) for
                    name
                    in change_list.list_display]
 
