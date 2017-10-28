@@ -187,8 +187,9 @@ class CourseRecordConfig(sites.AryaConfig):
 
             study_record_list = []
             for student in current_course_students: # 循环当前上课学生，创建记录
-                record = models.StudyRecord(course_record=course_obj, student=student)
-                study_record_list.append(record)
+                if not models.StudyRecord.objects.filter(course_record=course_obj, student=student).exists():
+                    record = models.StudyRecord(course_record=course_obj, student=student)
+                    study_record_list.append(record)
 
             models.StudyRecord.objects.bulk_create(study_record_list)
 
